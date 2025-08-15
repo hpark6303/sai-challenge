@@ -16,6 +16,7 @@ import re
 from tqdm import tqdm
 from typing import List, Dict
 import numpy as np
+from collections import Counter
 
 # --- 필요한 라이브러리 임포트 ---
 try:
@@ -118,6 +119,67 @@ def extract_korean_keywords_with_synonyms(query: str, okt) -> List[str]:
     # 중복 제거 및 정렬
     unique_keywords = list(set(expanded_keywords))
     return unique_keywords[:8]  # 최대 8개 키워드
+
+def extract_more_english_keywords(text: str) -> List[str]:
+    """영어 텍스트에서 추가 키워드 추출 (더 넓은 범위)"""
+    # 기본 키워드 추출
+    basic_keywords = extract_english_keywords(text)
+    
+    # 추가 키워드 추출 (더 많은 불용어 포함)
+    text_no_punct = re.sub(r'[^\w\s-]', '', text)
+    words = text_no_punct.split()
+    
+    # 확장된 불용어 제거
+    extended_stop_words = [
+        'a', 'an', 'the', 'what', 'how', 'who', 'when', 'where', 'why', 
+        'can', 'could', 'would', 'is', 'are', 'be', 'do', 'does', 'did', 
+        'in', 'of', 'for', 'to', 'and', 'or', 'it', 'its', 'their', 'by', 
+        'on', 'with', 'from', 'as', 'about', 'summarize', 'outline', 
+        'describe', 'propose', 'explain', 'provide', 'capture', 'distill', 
+        'characterize', 'evaluate', 'summarized', 'discussed', 'based',
+        'also', 'into', 'only', 'then', 'more', 'most', 'even', 'must', 'may', 'might', 'shall', 'should', 'would', 'could', 'will', 'can', 'do', 'does', 'did', 'done', 'doing', 'am', 'is', 'are', 'was', 'were', 'been', 'being', 'have', 'has', 'had', 'having', 'be', 'being', 'been', 'become', 'becomes', 'becoming', 'became', 'seem', 'seems', 'seemed', 'seeming', 'appear', 'appears', 'appeared', 'appearing', 'look', 'looks', 'looked', 'looking', 'feel', 'feels', 'felt', 'feeling', 'sound', 'sounds', 'sounded', 'sounding', 'taste', 'tastes', 'tasted', 'tasting', 'smell', 'smells', 'smelled', 'smelling'
+    ]
+    
+    # 키워드 필터링 및 정렬 (더 많은 키워드)
+    keywords = [word for word in words if word.lower() not in extended_stop_words and len(word) > 1]
+    
+    # 빈도순 정렬 (상위 20개)
+    word_freq = Counter(keywords)
+    additional_keywords = [word for word, freq in word_freq.most_common(20)]
+    
+    # 기본 키워드와 합치고 중복 제거
+    all_keywords = basic_keywords + additional_keywords
+    return list(dict.fromkeys(all_keywords))  # 순서 유지하면서 중복 제거
+
+def extract_more_korean_keywords(text: str, okt) -> List[str]:
+    """한국어 텍스트에서 추가 키워드 추출 (더 넓은 범위)"""
+    # 기본 키워드 추출
+    basic_keywords = extract_korean_keywords_with_synonyms(text, okt)
+    
+    # 추가 키워드 추출 (더 많은 품사 포함)
+    try:
+        # 명사, 형용사, 동사 모두 추출
+        pos_tags = okt.pos(text, norm=True, stem=True)
+        
+        # 더 많은 품사 포함
+        target_pos = ['Noun', 'Adjective', 'Verb', 'Adverb']
+        additional_keywords = []
+        
+        for word, pos in pos_tags:
+            if pos in target_pos and len(word) > 1:
+                additional_keywords.append(word)
+        
+        # 빈도순 정렬
+        word_freq = Counter(additional_keywords)
+        additional_keywords = [word for word, freq in word_freq.most_common(20)]
+        
+        # 기본 키워드와 합치고 중복 제거
+        all_keywords = basic_keywords + additional_keywords
+        return list(dict.fromkeys(all_keywords))  # 순서 유지하면서 중복 제거
+        
+    except Exception as e:
+        print(f"   ⚠️  추가 한국어 키워드 추출 오류: {e}")
+        return basic_keywords
 
 def simple_semantic_filtering(documents: List[Dict], query: str) -> List[Dict]:
     """간단한 의미 기반 필터링 (키워드 매칭)"""
@@ -303,6 +365,38 @@ def main():
         
         # 중복 제거
         unique_docs = list({doc['CN']: doc for doc in all_candidate_docs if 'CN' in doc}.values())
+        
+        # 50개가 안 되면 추가 키워드로 더 검색
+        if len(unique_docs) < 50:
+            print(f"   - 질문 {question_id+1}: {len(unique_docs)}개 문서 (50개 미만), 추가 검색 시작...")
+            
+            # 추가 키워드 추출 (더 넓은 범위)
+            if is_korean(real_query):
+                # 한국어: 더 많은 키워드 추출
+                additional_keywords = extract_more_korean_keywords(real_query, okt)
+            else:
+                # 영어: 더 많은 키워드 추출
+                additional_keywords = extract_more_english_keywords(real_query)
+            
+            # 기존 키워드와 중복 제거
+            existing_keywords = set(search_keywords)
+            new_keywords = [kw for kw in additional_keywords if kw not in existing_keywords]
+            
+            # 추가 검색 (최대 10개 키워드까지)
+            for keyword in new_keywords[:10]:
+                if len(unique_docs) >= 50:
+                    break
+                try:
+                    docs = client.search_articles(keyword, row_count=5, fields=['title', 'abstract', 'CN'])
+                    all_candidate_docs.extend(docs)
+                    time.sleep(0.2)
+                except Exception as e:
+                    print(f"   ⚠️  추가 검색 오류 (키워드: {keyword}): {e}")
+                    continue
+            
+            # 다시 중복 제거
+            unique_docs = list({doc['CN']: doc for doc in all_candidate_docs if 'CN' in doc}.values())
+            print(f"   - 질문 {question_id+1}: 추가 검색 후 {len(unique_docs)}개 문서")
         all_questions_data.append({
             'query': real_query, 
             'id': question_id, 
@@ -383,11 +477,11 @@ def main():
             # 예측 결과를 메모리에 저장
             predictions.append(final_answer)
             
-            # 상위 50개 논문 제목 추출
+            # 상위 50개 논문 정보 추출 (test.csv 형식에 맞춰)
             article_titles = []
-            for doc in data['final_docs'][:50]:
-                title = doc.get('title', '')
-                article_titles.append(title)
+            for i, doc in enumerate(data['final_docs'][:50]):
+                formatted_article = create_kaggle_format_article(doc, i+1)
+                article_titles.append(formatted_article)
             
             # 50개가 되도록 빈 문자열로 채움
             while len(article_titles) < 50:
@@ -411,12 +505,21 @@ def main():
         # Prediction 컬럼 추가
         submission_df['Prediction'] = predictions
         
-        # 50개 prediction_retrieved_article_name 컬럼 추가
+        # 50개 prediction_retrieved_article_name 컬럼 추가 (모두 빈 문자열로 초기화)
         for i in range(1, 51):
             column_name = f'prediction_retrieved_article_name_{i}'
-            submission_df[column_name] = [articles[i-1] if i-1 < len(articles) else '' for articles in predicted_articles]
+            submission_df[column_name] = [''] * len(submission_df)
+        
+        # 이제 각 컬럼에 실제 값 채우기
+        for i in range(1, 51):
+            column_name = f'prediction_retrieved_article_name_{i}'
+            for row_idx, articles in enumerate(predicted_articles):
+                if i-1 < len(articles) and articles[i-1]:
+                    submission_df.at[row_idx, column_name] = articles[i-1]
         
         submission_path = 'submission.csv'
+        # 모든 null 값을 빈 문자열로 변환
+        submission_df = submission_df.fillna('')
         submission_df.to_csv(submission_path, index=False, encoding='utf-8-sig')
         
         end_total_time = time.time()
