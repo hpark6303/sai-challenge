@@ -98,6 +98,15 @@ __pypackages__/
 celerybeat-schedule
 celerybeat.pid
 
+# Project specific
+vector_db/
+*.csv
+!test.csv
+configs/api_config.json
+submission/submissions/
+outputs/
+.DS_Store
+
 # SageMath parsed files
 *.sage.py
 
