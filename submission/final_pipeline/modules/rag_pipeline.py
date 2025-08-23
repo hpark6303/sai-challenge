@@ -29,7 +29,7 @@ class RAGPipeline:
         
         # 각 모듈 초기화
         self.vector_db = VectorDatabase(clear_db=clear_db)
-        self.retriever = DocumentRetriever(api_client)
+        self.retriever = DocumentRetriever(api_client, gemini_client)  # Gemini 클라이언트 전달
         self.reranker = DocumentReranker()
         self.answer_generator = AnswerGenerator(gemini_client)
         
@@ -84,7 +84,7 @@ class RAGPipeline:
     
     def _retrieve_documents(self, query: str) -> List[Dict]:
         """
-        문서 검색 (재시도 로직 포함)
+        문서 검색 (CRAG 파이프라인 사용)
         
         Args:
             query: 검색 쿼리
@@ -92,7 +92,7 @@ class RAGPipeline:
         Returns:
             검색된 문서 리스트
         """
-        return self.retriever.search_with_retry(query)
+        return self.retriever.search_with_crag(query)
     
     def _format_articles(self, documents: List[Dict]) -> List[str]:
         """

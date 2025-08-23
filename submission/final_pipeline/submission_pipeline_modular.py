@@ -19,10 +19,13 @@ def create_submission_documentation(md_filepath, pipeline_type, pipeline_stats, 
     
     pipeline_info = {
         'modular_v2': {
-            'name': '모듈화 RAG 파이프라인 v2.0',
-            'description': 'RAG 파이프라인을 독립적인 모듈로 분리하여 유지보수성과 확장성을 향상시킨 버전',
+            'name': '모듈화 RAG 파이프라인 v2.0 (CRAG 통합)',
+            'description': 'RAG 파이프라인을 독립적인 모듈로 분리하고 CRAG(Corrective RAG) 기능을 통합하여 검색 품질을 향상시킨 버전',
             'features': [
                 '모듈화된 구조 (vector_db, retrieval, reranking, prompting, answer_generator)',
+                'CRAG(Corrective RAG) 파이프라인 통합',
+                'LLM 기반 검색 품질 평가',
+                '조건부 교정 검색 (품질 미달 시 자동 개선)',
                 '설정 파일 분리 (config.py)',
                 '벡터 데이터베이스 기반 문서 검색',
                 '고품질 프롬프트 엔지니어링',
@@ -31,6 +34,7 @@ def create_submission_documentation(md_filepath, pipeline_type, pipeline_stats, 
             ],
             'changes': [
                 '기존 단일 파일 구조를 6개 모듈로 분리',
+                'CRAG 파이프라인 통합 (품질 평가 → 조건부 교정)',
                 'ChromaDB 벡터 데이터베이스 통합',
                 'sentence-transformers/all-MiniLM-L6-v2 임베딩 모델 사용',
                 '유사도 임계값 0.01로 조정하여 검색 성능 향상',
@@ -41,7 +45,10 @@ def create_submission_documentation(md_filepath, pipeline_type, pipeline_stats, 
                 'embedding_model': 'sentence-transformers/all-MiniLM-L6-v2',
                 'similarity_threshold': 0.01,
                 'min_docs': 50,
-                'max_docs': 100
+                'max_docs': 100,
+                'crag_enabled': True,
+                'quality_threshold': 0.7,
+                'max_corrective_attempts': 2
             }
         }
     }
@@ -173,6 +180,16 @@ def main():
     
     # 3. RAG 파이프라인 초기화
     pipeline = RAGPipeline(api_client, gemini_client)
+    
+    # CRAG 설정 정보 출력
+    from modules.config import CRAG_CONFIG
+    if CRAG_CONFIG.get('enable_crag', False):
+        print("✅ CRAG 파이프라인 활성화")
+        print(f"   - 품질 임계값: {CRAG_CONFIG.get('quality_threshold', 0.7)}")
+        print(f"   - 최대 교정 시도: {CRAG_CONFIG.get('max_corrective_attempts', 2)}회")
+        print(f"   - 웹 검색: {'활성화' if CRAG_CONFIG.get('web_search_enabled', False) else '비활성화'}")
+    else:
+        print("⚠️  CRAG 파이프라인 비활성화")
     
     # 4. 테스트 데이터 로드
     try:

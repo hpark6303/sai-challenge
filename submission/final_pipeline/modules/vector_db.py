@@ -69,8 +69,14 @@ class VectorDatabase:
     
     def _init_chromadb(self):
         """ChromaDB 초기화"""
-        self.client = chromadb.PersistentClient(path=self.db_path)
-        self.collection = self._get_or_create_collection()
+        try:
+            self.client = chromadb.PersistentClient(path=self.db_path)
+            self.collection = self._get_or_create_collection()
+        except Exception as e:
+            print(f"⚠️  영구 벡터 DB 초기화 실패: {e}")
+            print("🔄 인메모리 모드로 전환합니다...")
+            self.client = chromadb.Client()  # 인메모리 클라이언트
+            self.collection = self._get_or_create_collection()
     
     def _get_or_create_collection(self):
         """컬렉션 생성 또는 가져오기"""
@@ -129,26 +135,49 @@ class VectorDatabase:
     
     def _add_embeddings_to_db(self, documents: List[Dict]):
         """임베딩을 DB에 추가"""
-        # 문서 텍스트 생성
-        texts = [f"{doc.get('title', '')} {doc.get('abstract', '')}" for doc in documents]
-        
-        # 임베딩 생성
-        print(f"   - {len(texts)}개 문서 임베딩 생성 중...")
-        embeddings = self.model.encode(texts, show_progress_bar=True)
-        
-        # 메타데이터 및 ID 준비
-        ids = [str(doc.get('CN', '')) for doc in documents]
-        metadatas = [{'title': doc.get('title', ''), 'abstract': doc.get('abstract', '')} for doc in documents]
-        
-        # 벡터 DB에 추가
-        self.collection.add(
-            embeddings=embeddings.tolist(),
-            documents=texts,
-            ids=ids,
-            metadatas=metadatas
-        )
-        
-        print(f"   - {len(texts)}개 문서 벡터 DB 추가 완료")
+        try:
+            # 문서 텍스트 생성
+            texts = [f"{doc.get('title', '')} {doc.get('abstract', '')}" for doc in documents]
+            
+            # 임베딩 생성
+            print(f"   - {len(texts)}개 문서 임베딩 생성 중...")
+            embeddings = self.model.encode(texts, show_progress_bar=True)
+            
+            # 메타데이터 및 ID 준비
+            ids = [str(doc.get('CN', '')) for doc in documents]
+            metadatas = [{'title': doc.get('title', ''), 'abstract': doc.get('abstract', '')} for doc in documents]
+            
+            # 벡터 DB에 추가
+            self.collection.add(
+                embeddings=embeddings.tolist(),
+                documents=texts,
+                ids=ids,
+                metadatas=metadatas
+            )
+            
+            print(f"   - {len(texts)}개 문서 벡터 DB 추가 완료")
+            
+        except Exception as e:
+            print(f"   ❌ 벡터 DB 추가 실패: {e}")
+            # 에러가 발생해도 프로세스는 계속 진행
+            if "readonly database" in str(e):
+                print(f"   💡 해결 방안: vector_db 폴더 권한을 확인하고 다시 시도하세요.")
+                print(f"   💡 임시 해결: 인메모리 모드로 전환합니다.")
+                self._fallback_to_memory_mode()
+    
+    def _fallback_to_memory_mode(self):
+        """읽기 전용 오류 시 인메모리 모드로 전환"""
+        try:
+            print("   🔄 인메모리 벡터 DB로 전환 중...")
+            self.client = chromadb.Client()  # 인메모리 클라이언트
+            self.collection = self.client.create_collection(
+                name=self.collection_name,
+                metadata={"description": "임시 인메모리 벡터 데이터베이스"}
+            )
+            print("   ✅ 인메모리 벡터 DB 초기화 완료")
+        except Exception as e:
+            print(f"   ❌ 인메모리 모드 전환도 실패: {e}")
+            print("   ⚠️  벡터 검색 기능을 비활성화합니다.")
     
     def search_similar(self, query: str, 
                       n_results: int = VECTOR_DB_CONFIG['max_results'],

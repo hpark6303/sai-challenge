@@ -8,26 +8,85 @@
 
 import time
 import re
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from konlpy.tag import Okt
-from .config import SEARCH_CONFIG, TEST_CONFIG
+from .config import SEARCH_CONFIG, TEST_CONFIG, CRAG_CONFIG
+from .prompting import PromptEngineer
 
 class DocumentRetriever:
     """문서 검색기"""
     
-    def __init__(self, api_client):
+    def __init__(self, api_client, gemini_client=None):
         """
         검색기 초기화
         
         Args:
             api_client: ScienceON API 클라이언트
+            gemini_client: Gemini API 클라이언트 (CRAG용)
         """
         self.api_client = api_client
+        self.gemini_client = gemini_client
         self.okt = Okt()
+        self.prompt_engineer = PromptEngineer()
     
     def extract_keywords(self, query: str) -> List[str]:
         """
-        쿼리에서 키워드 추출
+        쿼리에서 키워드 추출 (고급 LLM 기반 추출 사용)
+        
+        Args:
+            query: 검색 쿼리
+            
+        Returns:
+            추출된 키워드 리스트
+        """
+        # LLM 기반 고급 키워드 추출 시도
+        if self.gemini_client:
+            try:
+                advanced_keywords = self._extract_keywords_with_llm(query)
+                if advanced_keywords:
+                    print(f"   🧠 LLM 기반 고급 키워드 추출: {', '.join(advanced_keywords)}")
+                    return advanced_keywords
+            except Exception as e:
+                print(f"   ⚠️  LLM 키워드 추출 실패, 기본 방식 사용: {e}")
+        
+        # 폴백: 기존 방식 사용
+        return self._extract_keywords_basic(query)
+    
+    def _extract_keywords_with_llm(self, query: str) -> List[str]:
+        """
+        LLM을 사용한 고급 키워드 추출
+        
+        Args:
+            query: 검색 쿼리
+            
+        Returns:
+            추출된 키워드 리스트
+        """
+        # 고급 키워드 생성 프롬프트 사용
+        prompt = self.prompt_engineer.create_advanced_keyword_generation_prompt(query)
+        
+        try:
+            response = self.gemini_client.generate_answer(prompt)
+            
+            # 응답에서 키워드 추출 (줄바꿈으로 구분된 키워드들)
+            keywords = []
+            for line in response.strip().split('\n'):
+                line = line.strip()
+                if line and not line.startswith('#') and not line.startswith('-'):
+                    # 불필요한 문자 제거
+                    clean_keyword = line.replace('*', '').replace('-', '').strip()
+                    if clean_keyword and len(clean_keyword) > 1:
+                        keywords.append(clean_keyword)
+            
+            return keywords[:5]  # 최대 5개 키워드
+            
+        except Exception as e:
+            print(f"   ⚠️  LLM 키워드 추출 중 오류: {e}")
+            return []
+    
+    def _extract_keywords_basic(self, query: str) -> List[str]:
+        """
+        기본 키워드 추출 (기존 방식)
         
         Args:
             query: 검색 쿼리
@@ -375,3 +434,206 @@ class DocumentRetriever:
         print(f"   ✅ 원본 검색 결과로 보충: {len(supplemented_docs)}개")
         
         return supplemented_docs[:target_count]
+
+    def search_with_crag(self, query: str) -> List[Dict]:
+        """
+        CRAG 파이프라인을 사용한 문서 검색
+        
+        Args:
+            query: 검색 쿼리
+            
+        Returns:
+            검색된 문서 리스트
+        """
+        if not CRAG_CONFIG.get('enable_crag', False) or not self.gemini_client:
+            print("   ⚠️  CRAG 비활성화 또는 Gemini 클라이언트 없음 - 일반 검색 사용")
+            return self.search_with_retry(query)
+        
+        print("   🔄 CRAG 파이프라인 시작")
+        
+        # 1차 검색
+        initial_docs = self.search_with_retry(query)
+        print(f"   📚 1차 검색 결과: {len(initial_docs)}개 문서")
+        
+        # 품질 평가
+        quality_score, issues = self._evaluate_search_quality(query, initial_docs)
+        print(f"   📊 품질 평가 점수: {quality_score:.2f}/10")
+        
+        # 성공 여부 판단
+        threshold = CRAG_CONFIG.get('quality_threshold', 0.7)
+        if quality_score >= threshold * 10:  # 10점 만점 기준
+            print("   ✅ 품질 기준 충족 - 1차 검색 결과 사용")
+            return initial_docs
+        
+        # 실패 시 교정 검색
+        print("   ⚠️  품질 기준 미달 - 교정 검색 시작")
+        corrected_docs = self._corrective_search(query, initial_docs, issues)
+        
+        return corrected_docs
+    
+    def _evaluate_search_quality(self, query: str, documents: List[Dict]) -> Tuple[float, str]:
+        """
+        검색 결과 품질 평가
+        
+        Args:
+            query: 원본 질문
+            documents: 검색된 문서들
+            
+        Returns:
+            (품질 점수, 문제점 설명) 튜플
+        """
+        if not documents:
+            return 0.0, "검색 결과가 없습니다."
+        
+        # 샘플 문서 선택 (처음 3개)
+        sample_docs = documents[:3]
+        sample_text = "\n".join([
+            f"제목: {doc.get('title', 'N/A')}\n초록: {doc.get('abstract', 'N/A')[:200]}..."
+            for doc in sample_docs
+        ])
+        
+        # 평가 프롬프트 생성
+        prompt = CRAG_CONFIG['correction_prompt_template'].format(
+            query=query,
+            doc_count=len(documents),
+            sample_docs=sample_text,
+            relevance_score="",  # LLM이 채울 부분
+            quality_score="",
+            sufficiency_score="",
+            total_score="",
+            improvement_suggestions="",
+            new_keywords=""
+        )
+        
+        try:
+            # Gemini로 품질 평가
+            evaluation_text = self.gemini_client.generate_answer(prompt)
+            
+            # 점수 추출 (간단한 파싱)
+            score_match = re.search(r'종합 점수:\s*(\d+(?:\.\d+)?)/10', evaluation_text)
+            if score_match:
+                score = float(score_match.group(1))
+            else:
+                # 점수를 찾을 수 없으면 기본값
+                score = 5.0
+            
+            # 문제점 추출
+            issues_match = re.search(r'개선 제안:\s*(.*?)(?=\n\n|\n새로운 검색 키워드:|$)', 
+                                   evaluation_text, re.DOTALL)
+            issues = issues_match.group(1).strip() if issues_match else "평가 중 오류 발생"
+            
+            return score, issues
+            
+        except Exception as e:
+            print(f"   ⚠️  품질 평가 실패: {e}")
+            return 5.0, f"평가 중 오류: {str(e)}"
+    
+    def _corrective_search(self, query: str, original_docs: List[Dict], issues: str) -> List[Dict]:
+        """
+        교정 검색 수행
+        
+        Args:
+            query: 원본 질문
+            original_docs: 원본 검색 결과
+            issues: 검색 결과 문제점
+            
+        Returns:
+            교정된 검색 결과
+        """
+        print("   🔄 교정 검색 시작")
+        
+        max_attempts = CRAG_CONFIG.get('max_corrective_attempts', 2)
+        
+        for attempt in range(max_attempts):
+            print(f"   - 교정 시도 {attempt + 1}/{max_attempts}")
+            
+            # 개선된 키워드 생성
+            improved_keywords = self._generate_improved_keywords(query, issues)
+            print(f"   🔍 개선된 키워드: {', '.join(improved_keywords)}")
+            
+            # 개선된 키워드로 재검색
+            corrected_docs = []
+            for keyword in improved_keywords:
+                try:
+                    docs = self.api_client.search_articles(
+                        keyword, 
+                        row_count=30,
+                        fields=['title', 'abstract', 'CN']
+                    )
+                    corrected_docs.extend(docs)
+                    time.sleep(SEARCH_CONFIG['api_delay'])
+                except Exception as e:
+                    print(f"   ⚠️  키워드 '{keyword}' 검색 실패: {e}")
+                    continue
+            
+            # 중복 제거 및 품질 필터링
+            corrected_docs = self._remove_duplicates(corrected_docs)
+            
+            # 품질 재평가
+            if corrected_docs:
+                quality_score, _ = self._evaluate_search_quality(query, corrected_docs)
+                print(f"   📊 교정 후 품질 점수: {quality_score:.2f}/10")
+                
+                threshold = CRAG_CONFIG.get('quality_threshold', 0.7)
+                if quality_score >= threshold * 10:
+                    print("   ✅ 교정 검색 성공")
+                    return corrected_docs
+            
+            print("   ⚠️  교정 검색 품질 미달 - 추가 시도")
+        
+        print("   🚨 모든 교정 시도 실패 - 원본 결과 반환")
+        return original_docs
+    
+    def _generate_improved_keywords(self, query: str, issues: str) -> List[str]:
+        """
+        개선된 검색 키워드 생성
+        
+        Args:
+            query: 원본 질문
+            issues: 검색 결과 문제점
+            
+        Returns:
+            개선된 키워드 리스트
+        """
+        # 웹 검색이 활성화되어 있으면 웹 검색 활용
+        if CRAG_CONFIG.get('web_search_enabled', False):
+            return self._generate_keywords_with_web_search(query, issues)
+        else:
+            return self._generate_keywords_with_llm(query, issues)
+    
+    def _generate_keywords_with_llm(self, query: str, issues: str) -> List[str]:
+        """
+        LLM을 사용한 키워드 개선 (고급 프롬프트 사용)
+        """
+        # 고급 키워드 생성 프롬프트 사용
+        prompt = self.prompt_engineer.create_advanced_keyword_generation_prompt(query)
+        
+        # 문제점 정보 추가
+        if issues:
+            prompt += f"\n\n# 기존 검색 결과 문제점:\n{issues}\n\n위 문제점을 고려하여 더 정확한 키워드를 생성해주세요."
+        
+        try:
+            response = self.gemini_client.generate_answer(prompt)
+            
+            # 응답에서 키워드 추출
+            keywords = []
+            for line in response.strip().split('\n'):
+                line = line.strip()
+                if line and not line.startswith('#') and not line.startswith('-'):
+                    clean_keyword = line.replace('*', '').replace('-', '').strip()
+                    if clean_keyword and len(clean_keyword) > 1:
+                        keywords.append(clean_keyword)
+            
+            return keywords[:8]  # 최대 8개
+            
+        except Exception as e:
+            print(f"   ⚠️  LLM 키워드 생성 실패: {e}")
+            # 폴백: 기존 키워드 확장
+            return self.extract_more_keywords(query, 8)
+    
+    def _generate_keywords_with_web_search(self, query: str, issues: str) -> List[str]:
+        """
+        웹 검색을 활용한 키워드 개선 (향후 구현)
+        """
+        # 현재는 LLM 방식 사용
+        return self._generate_keywords_with_llm(query, issues)
