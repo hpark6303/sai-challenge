@@ -58,37 +58,29 @@ class PromptEngineer:
 {query}
 
 ## 🎯 답변 작성 원칙:
-1. **언어 일치**: 질문과 같은 언어로 답변하세요 ({language_instruction})
-2. **전문성**: 해당 분야의 전문가 수준으로 답변하세요
-3. **직접성**: 다음 메타 설명들을 절대 사용하지 마세요:
+**언어 일치**: 질문과 같은 언어로 답변하세요 ({language_instruction})
+**전문성**: 해당 분야의 전문가 수준으로 답변하세요
+**직접성**: 다음 메타 설명들을 절대 사용하지 마세요:
    - "제공된 문서를 바탕으로", "문서 분석을 통한"
    - "본 보고서는", "이 연구에서는"
    - "문서 1은", "문서 2는" 등의 참고 문헌 언급
    - "제시된 자료", "참고 문서" 등의 표현
-4. **지식 전달**: 순수하게 지식과 정보만을 전달하세요
-5. **구체성**: 추상적인 설명보다는 구체적인 내용을 제공하세요
+**지식 전달**: 순수하게 지식과 정보만을 전달하세요 구조화의 방법에 숫자를 활용하지 마세요. 
+**구체성**: 추상적인 설명보다는 구체적인 내용을 제공하세요
 
 ## 📝 출력 형식:
 {self._format_output_instructions()}
 
 ## 💡 좋은 답변 예시:
 
-### 예시 질문: "빅데이터를 활용한 고객 행동 분석 방법의 주요 특징은 무엇인가요?"
+#예시 질문: 제조 품질 개선을 위해 제안된 식스 시그마 기반 Big Data 활용 방법의 주요 절차를 요약해 주시겠습니까?
 
-### 예시 답변:
-**제목: 빅데이터 기반 고객 행동 분석 방법론의 핵심 특징**
+#예시 답변:
+##제목## 빅데이터를 활용한 식스 시그마 기반 제조 품질 개선 절차 요약 ##서론## 제조 기업은 전통적인 식스 시그마 프로젝트를 통해 체계적인 품질 개선을 추진해 왔으나, 최근 빅데이터 기술을 접목함으로써 문제점 탐색과 개선 효과 검증을 더욱 신속·정밀하게 수행할 수 있는 가능성이 커졌다. 본 연구에서는 식스 시그마의 DMAIC(Define-Measure-Analyze-Improve-Control) 단계별로 빅데이터 활용 방안을 제안한다. ##본론## 1. Define(정의) - 개선 목표 및 핵심 품질 이슈를 명확히 설정 - 빅데이터 플랫폼에 연계 가능한 공정·장비·검사 데이터 범위 지정 2. Measure(측정) - 센서, 생산관리시스템, 검사 장비 등에서 대량의 실시간 데이터를 수집·통합 - 데이터 정합성·이상치 검출을 위한 전처리 적용 3. Analyze(분석) - 통계적 기법 및 머신러닝 모델을 활용해 주요 결함 원인과 공정 변수 상관관계 파악 - 멀티변량 분석을 통해 숨겨진 패턴 및 잠재적 리스크 식별 4. Improve(개선) - 분석 결과를 바탕으로 공정 조건·검사 기준을 최적화 - 시뮬레이션 및 파일럿 실험을 통해 개선안의 실효성 검증 5. Control(관리) - 실시간 모니터링 대시보드와 이상 알림 시스템을 구축해 개선 결과 지속 관찰 - 제어 차트·경고 임계치 설정으로 재발 방지 및 표준화 유지 ##결론## 식스 시그마의 DMAIC 절차에 빅데이터 수집·분석·시각화 역량을 결합함으로써 품질 문제를 더욱 빠르고 정확하게 해결할 수 있으며, 지속적인 모니터링을 통해 제조 공정의 안정성과 경쟁력을 동시에 확보할 수 있다.
 
-**서론:**
-빅데이터 기술의 발전으로 고객 행동 분석이 혁신적으로 변화하고 있습니다. 이 분석 방법은 실시간 데이터 처리, 다차원 패턴 인식, 예측적 인사이트 도출을 통해 기업의 의사결정을 지원합니다.
+# 예시 질문:DBN 기반 딥 러닝을 이용한 기업부도 예측과 기존 SVM 방법 간의 성능 차이, 특히 부도기업 예측 민감도 향상 결과를 간단히 정리해 주실 수 있나요?
 
-**본론:**
-1. **실시간 데이터 처리**: 스트리밍 기술을 활용한 즉시 분석으로 시의적절한 대응이 가능합니다.
-2. **다차원 패턴 인식**: 구매 이력, 웹사이트 방문 패턴, 소셜 미디어 활동을 종합적으로 분석합니다.
-3. **예측적 인사이트**: 머신러닝 알고리즘을 통해 고객의 미래 행동을 예측합니다.
-4. **개인화 서비스**: 개별 고객의 선호도를 파악하여 맞춤형 서비스를 제공합니다.
-
-**결론:**
-빅데이터 기반 고객 행동 분석은 데이터의 양적 확장과 질적 향상을 통해 기업의 경쟁력을 크게 향상시킬 수 있습니다.
+# 예시 답변: ##제목## DBN 기반 딥러닝과 SVM을 활용한 기업부도 예측 성능 비교 ##서론## 기업부도는 국가경제와 이해관계자들에게 심각한 손실을 초래하므로, 이를 정확히 예측하는 연구가 중요하다. 최근 이미지·음성·자연어 처리 분야에서 우수한 성능을 보인 Deep Belief Network(DBN)를 기업부도 예측에 도입하여 기존의 Support Vector Machine(SVM)과 비교 분석을 수행하였다. ##본론## - 연구 데이터 및 변수: 1999~2015년 코스닥·코스피 비금융업종 2,164개 기업(정상 1,669개, 부도 495개)과 한국은행 기업경영분석의 재무비율 변수 활용 - 모델 비교: DBN과 전통적 SVM을 동일 데이터로 학습·검증 - 주요 결과: 전반적 평가척도에서 DBN이 SVM보다 우수한 예측력을 보였으며, 특히 부도기업을 정확히 식별하는 민감도(sensitivity)가 시험 데이터 기준으로 5% 이상 높게 향상됨 ##결론## DBN 기반 딥러닝은 SVM 대비 부도기업 탐지 능력을 크게 개선하여, 기업부도 예측 분야에서 딥러닝 기법의 유용성을 확인시켜 주었다.
 
 ## ⚠️ 금지 표현 예시:
 - ❌ "제공된 문서를 바탕으로..."
@@ -246,41 +238,30 @@ class PromptEngineer:
 {query}
 
 ## 🎯 Answer Writing Principles:
-1. **Professional Tone**: Write as an expert in the field
-2. **Directness**: Absolutely avoid these meta-explanations:
+**Professional Tone**: Write as an expert in the field
+**Directness**: Absolutely avoid these meta-explanations:
    - "Based on the provided documents"
    - "According to the research"
    - "The documents show that"
    - "This study indicates"
    - "The analysis reveals"
-3. **Knowledge Transfer**: Focus purely on transferring knowledge and information
-4. **Specificity**: Provide concrete details rather than abstract explanations
-5. **Structure**: Organize with clear sections and logical flow
+**Knowledge Transfer**: Focus purely on transferring knowledge and information
+**Specificity**: Provide concrete details rather than abstract explanations
+**Structure**: Organize with clear sections and logical flow
 
 ## 📝 Output Format:
-1. **Title**: Concise and professional title
-2. **Introduction**: Brief background and context
-3. **Main Body**: Detailed analysis with specific points
-4. **Conclusion**: Summary of key findings
+**Title**: Concise and professional title
+**Introduction**: Brief background and context
+**Main Body**: Detailed analysis with specific points
+**Conclusion**: Summary of key findings
 
 ## 💡 Good Answer Example:
 
-### Example Question: "What are the key features of machine learning approaches in healthcare applications?"
+#Example Question: "How would you concisely summarize the strategic landscape and major industry examples that characterize IT convergence developments in Korea?"
+#Example Answer:##Strategic Landscape and Key Industry Cases of IT Convergence in Korea## ##Introduction## IT convergence in Korea has emerged as a core driver of national growth, combining information technology with traditional industries to foster new markets and enhance competitiveness. Government initiatives launched since 2008 have provided policy frameworks, R&D support and specialized convergence centers to accelerate cross–sector collaboration and standardization efforts. ##Main Body## Strategically, Korea benchmarks international convergence best practices while selectively focusing resources on promising fields such as u-IT, IT/OT and IT/BT fusion. In consumer electronics, LG and Samsung integrate sensors, network connectivity and multimedia platforms to deliver intelligent home appliances and smart displays. Heavy industry player POSCO employs IT to optimize steel production processes and develop smart factory solutions. The power sector’s Advanced Distribution Management System illustrates IT/OT convergence by merging SCADA, automation and global information-sharing functions for real-time grid control. Defense convergence models leverage commercial IT to improve weapon acquisition, command-and-control and logistics through dedicated defense IT convergence centers and new business-model frameworks. In agriculture and environment, smart-farm projects combine IoT sensors with climate control systems to promote low-carbon green growth, while healthcare and sports services use wearable u-IT devices and big-data analytics to enhance rehabilitation and performance monitoring. ##Conclusion## Korea’s IT convergence landscape is characterized by targeted government support, cross-industry standardization and leading examples in electronics, manufacturing, energy, defense and green industries. Sustained success will depend on ecosystem development, talent cultivation and continuous alignment of policy with emerging technological synergies.
 
-### Example Answer:
-**Title: Key Features of Machine Learning Approaches in Healthcare Applications**
-
-**Introduction:**
-Machine learning has revolutionized healthcare by enabling predictive diagnostics, personalized treatment plans, and automated medical image analysis. These approaches leverage vast amounts of patient data to improve clinical decision-making and patient outcomes.
-
-**Main Body:**
-1. **Predictive Diagnostics**: ML algorithms analyze patient data to predict disease risk and progression, enabling early intervention.
-2. **Personalized Medicine**: Individual patient characteristics are used to tailor treatment plans and medication dosages.
-3. **Medical Image Analysis**: Deep learning models provide accurate interpretation of X-rays, MRIs, and CT scans.
-4. **Clinical Decision Support**: Real-time analysis of patient data assists healthcare providers in making informed decisions.
-
-**Conclusion:**
-Machine learning in healthcare represents a paradigm shift toward data-driven, personalized medicine that enhances both diagnostic accuracy and treatment effectiveness.
+#Example Question: "How can the rationale and structure of the free electronic textbook outlining the essential mathematics for understanding AI in a one- or two-semester undergraduate course be summarized?"
+#Example Answer: ##Free Electronic Textbook on Essential Mathematics for AI## ##Introduction## As artificial intelligence permeates modern industries—from healthcare and robotics to smart homes and IoT—understanding its underlying mathematical principles has become indispensable for undergraduate students. To address this need, a research team developed a free electronic textbook titled “Fundamental Mathematics for AI,” designed to cover all core math concepts required for AI and machine learning within one or two semesters. ##Main Body## The textbook is organized into modular chapters that build progressively: it begins with vector and matrix operations fundamental to neural networks, then introduces probability theory and statistical inference for data modeling, followed by calculus and optimization techniques that underpin learning algorithms. Each module includes context-relevant examples, problem-solving exercises, and visualizations tailored to the local curriculum, ensuring practical comprehension. Accompanying online resources and interactive lectures support students from diverse majors, reinforcing theoretical material with hands-on applications in Python and MATLAB. The entire course framework—from learning objectives to assessment items—has been openly shared and successfully implemented at the undergraduate and graduate levels. ##Conclusion## By structuring essential topics into a cohesive, semester-based sequence and providing free, adaptable materials, this electronic textbook equips learners with the rigorous mathematical toolkit required for AI and facilitates broader access to high-quality instruction in rapidly evolving technological fields.
 
 ---
 ## ✍️ Your Answer:
