@@ -18,7 +18,7 @@ class PromptEngineer:
     
     def create_final_prompt(self, query: str, context: str, language: str) -> str:
         """
-        최종 답변 생성을 위한 프롬프트 (고품질 버전)
+        최종 답변 생성을 위한 프롬프트 (Chain of Thought + 예시 포함)
         
         Args:
             query: 사용자 질문
@@ -30,28 +30,75 @@ class PromptEngineer:
         """
         language_instruction = "한국어로" if language == "ko" else "영어로 (in English)"
         
-        return f"""{PROMPT_CONFIG['system_role']}
+        return f"""당신은 학술 연구 전문가입니다. 제공된 문서들의 내용을 바탕으로 질문에 대한 정확하고 전문적인 답변을 작성하세요.
 
-### 참고 문서 (Context):
+## 📋 작업 과정 (Chain of Thought)
+
+### 1단계: 질문 분석
+- 질문의 핵심 주제와 요구사항을 파악하세요
+- 어떤 종류의 정보가 필요한지 명확히 하세요
+
+### 2단계: 문서 검토
+- 제공된 문서들을 체계적으로 검토하세요
+- 질문과 관련된 핵심 정보를 추출하세요
+- 문서 간의 연결점과 차이점을 파악하세요
+
+### 3단계: 정보 종합
+- 추출한 정보를 논리적으로 연결하세요
+- 일관성 있고 체계적인 구조로 정리하세요
+
+### 4단계: 답변 구성
+- 전문적이고 명확한 언어로 답변을 작성하세요
+- 구체적인 예시와 데이터를 포함하세요
+
+## 📚 참고 문서:
 {context}
 
-### 과제 (Task):
-'참고 문서'의 내용을 완벽하게 숙지한 후, 아래 '출력 형식'에 맞춰 '원본 질문'에 대한 분석 보고서를 작성하세요.
-
-### 원본 질문 (Original Question):
+## ❓ 질문:
 {query}
 
-### 핵심 지침 (Core Directives):
-1. **언어 준수**: 원본 질문이 '{language_instruction}'로 작성되었으므로, 최종 보고서 전체를 반드시 **{language_instruction}**로 작성해야 합니다.
-2. **전문가의 자세**: 당신은 이 주제의 전문가입니다. "정보가 부족하다", "~일 것으로 추정된다"와 같은 불확실한 표현을 절대 사용하지 마세요.
-3. **사실 기반 종합**: 여러 문서에 흩어져 있는 정보를 논리적으로 연결하고 종합하여 하나의 완성된 글로 재구성하세요.
-4. **엄격한 출처 표기**: 보고서의 모든 문장은 반드시 '참고 문서'에 명시된 사실에 기반해야 합니다.
+## 🎯 답변 작성 원칙:
+1. **언어 일치**: 질문과 같은 언어로 답변하세요 ({language_instruction})
+2. **전문성**: 해당 분야의 전문가 수준으로 답변하세요
+3. **직접성**: 다음 메타 설명들을 절대 사용하지 마세요:
+   - "제공된 문서를 바탕으로", "문서 분석을 통한"
+   - "본 보고서는", "이 연구에서는"
+   - "문서 1은", "문서 2는" 등의 참고 문헌 언급
+   - "제시된 자료", "참고 문서" 등의 표현
+4. **지식 전달**: 순수하게 지식과 정보만을 전달하세요
+5. **구체성**: 추상적인 설명보다는 구체적인 내용을 제공하세요
 
-### 출력 형식 (Output Format):
+## 📝 출력 형식:
 {self._format_output_instructions()}
 
+## 💡 좋은 답변 예시:
+
+### 예시 질문: "빅데이터를 활용한 고객 행동 분석 방법의 주요 특징은 무엇인가요?"
+
+### 예시 답변:
+**제목: 빅데이터 기반 고객 행동 분석 방법론의 핵심 특징**
+
+**서론:**
+빅데이터 기술의 발전으로 고객 행동 분석이 혁신적으로 변화하고 있습니다. 이 분석 방법은 실시간 데이터 처리, 다차원 패턴 인식, 예측적 인사이트 도출을 통해 기업의 의사결정을 지원합니다.
+
+**본론:**
+1. **실시간 데이터 처리**: 스트리밍 기술을 활용한 즉시 분석으로 시의적절한 대응이 가능합니다.
+2. **다차원 패턴 인식**: 구매 이력, 웹사이트 방문 패턴, 소셜 미디어 활동을 종합적으로 분석합니다.
+3. **예측적 인사이트**: 머신러닝 알고리즘을 통해 고객의 미래 행동을 예측합니다.
+4. **개인화 서비스**: 개별 고객의 선호도를 파악하여 맞춤형 서비스를 제공합니다.
+
+**결론:**
+빅데이터 기반 고객 행동 분석은 데이터의 양적 확장과 질적 향상을 통해 기업의 경쟁력을 크게 향상시킬 수 있습니다.
+
+## ⚠️ 금지 표현 예시:
+- ❌ "제공된 문서를 바탕으로..."
+- ❌ "본 보고서는..."
+- ❌ "문서 1에서는..."
+- ❌ "이 연구에서는..."
+- ❌ "제시된 자료에 따르면..."
+
 ---
-### 최종 보고서:
+## ✍️ 최종 답변:
 """
     
     def _format_output_instructions(self) -> str:
@@ -63,7 +110,7 @@ class PromptEngineer:
     
     def create_simple_prompt(self, query: str, context: str) -> str:
         """
-        간단한 프롬프트 (fallback용)
+        간단한 프롬프트 (fallback용) - Chain of Thought 포함
         
         Args:
             query: 사용자 질문
@@ -72,14 +119,24 @@ class PromptEngineer:
         Returns:
             간단한 프롬프트
         """
-        return f"""다음 질문에 대해 제공된 논문 정보를 바탕으로 정확하고 상세한 답변을 작성하세요.
+        return f"""당신은 학술 연구 전문가입니다. 다음 과정을 따라 질문에 답변하세요:
 
-질문: {query}
+## 🔍 분석 과정:
+1. 질문의 핵심 요구사항 파악
+2. 제공된 문서에서 관련 정보 추출
+3. 정보를 논리적으로 종합
+4. 전문적이고 명확한 답변 작성
 
-참고 논문 정보:
+## 📚 참고 문서:
 {context}
 
-답변 (최소 {ANSWER_CONFIG['min_answer_length']}자 이상):
+## ❓ 질문:
+{query}
+
+## ✍️ 답변 (최소 {ANSWER_CONFIG['min_answer_length']}자 이상):
+- "제공된 문서를 바탕으로" 등의 메타 설명 제외
+- 직접적이고 전문적인 내용으로 작성
+- 구체적인 정보와 예시 포함
 """
     
     def create_quality_check_prompt(self, answer: str, query: str) -> str:
@@ -109,71 +166,124 @@ class PromptEngineer:
 
     def create_advanced_keyword_generation_prompt(self, question: str) -> str:
         """
-        단계별 사고(Step-by-Step)를 통해 ScienceOn API에 최적화된
-        고품질 검색 키워드를 생성하는 프롬프트.
+        ScienceOn API에 최적화된 작은 단위 키워드를 직접 생성하는 프롬프트.
         """
         return f"""
 # ROLE & GOAL
-당신은 한국 학술 연구 데이터베이스 'ScienceOn'의 검색 성능을 극대화하는 임무를 맡은 최고 수준의 프롬프트 엔지니어이자 연구원입니다. 당신의 목표는 사용자의 복잡한 질문을 분석하여, 관련성이 가장 높은 핵심 논문을 찾아낼 수 있는 정교하고 다각적인 검색 키워드 셋을 생성하는 것입니다.
+당신은 한국 학술 연구 데이터베이스 'ScienceOn'의 검색 성능을 극대화하는 전문가입니다. 
+사용자의 질문을 분석하여 ScienceOn API에서 효과적으로 검색할 수 있는 **작은 단위의 키워드들**을 생성하세요.
 
-# CONTEXT
-ScienceOn은 한국어로 된 학술 용어와 핵심적인 영문 약어(Acronym)에 가장 잘 반응하는 전문적인 데이터베이스입니다. "결과", "연구", "방법"과 같은 일반적인 단어는 검색에 도움이 되지 않습니다.
+# KEY REQUIREMENTS
+1. **작은 단위 키워드**: 긴 문구 대신 1-3단어로 구성된 작은 키워드 생성
+2. **즉시 검색 가능**: ScienceOn API에서 바로 검색할 수 있는 형태
+3. **핵심 용어 우선**: 질문의 핵심 개념을 나타내는 전문 용어 위주
+4. **중복 제거**: 비슷한 의미의 키워드는 하나로 통합
 
-# STEP-BY-STEP PROCESS
-당신은 다음의 4단계 사고 과정을 반드시 순서대로 따라야 합니다.
+# EXAMPLES
+❌ 잘못된 예시:
+- "Big Data를 이용한 Warehouse Management System 모델"
+- "Mechanical Turk 데이터로부터 TurKontrol의 POMDP 파라미터 학습"
 
-**Step 1: 질문 분해 (Deconstruct the Question)**
-- 먼저, 사용자의 질문을 의미론적으로 가장 작은 핵심 구성 요소로 분해합니다.
-- 질문의 주제(Topic), 범위(Scope), 관점(Perspective), 구체적인 대상(Object)은 무엇인지 명확히 식별하세요.
+✅ 올바른 예시:
+- "Big Data"
+- "Warehouse Management"
+- "Mechanical Turk"
+- "POMDP"
+- "TurKontrol"
 
-**Step 2: 핵심 개념 식별 (Identify Core Concepts)**
-- 분해된 구성 요소를 바탕으로, 이 질문의 학술적 핵심이 되는 개념들을 모두 나열하세요.
-- 한국어 학술 용어, 일반적으로 통용되는 영문 명칭 및 약어(Acronym)를 모두 고려해야 합니다.
+# PROCESS
+1. 질문에서 핵심 개념 추출
+2. 각 개념을 1-3단어로 분할
+3. 검색 가능한 작은 키워드로 변환
+4. 중복 제거 및 정리
 
-**Step 3: 키워드 확장 및 브레인스토밍 (Expand & Brainstorm Keywords)**
-- 식별된 핵심 개념들을 바탕으로, 검색에 사용할 수 있는 잠재적 키워드 목록을 만듭니다.
-- 동의어, 유의어, 상위 개념, 하위 개념 등을 모두 고려하여 풍부한 키워드 풀을 구성하세요.
-- 예를 들어, '인공지능'이라면 '딥러닝', '머신러닝', '자연어 처리', 'LLM' 등으로 확장할 수 있습니다.
-
-**Step 4: 최종 키워드 선택 및 정제 (Select & Refine Final Keywords)**
-- 브레인스토밍된 키워드들 중에서, ScienceOn API 검색에 가장 효과적일 것이라고 판단되는 **최상위 키워드 3개에서 5개**를 신중하게 선택하세요.
-- 선택된 키워드는 너무 광범위하지도, 너무 협소하지도 않아야 합니다.
-- 최종 키워드들은 반드시 줄바꿈(new line)으로만 구분하여 다른 설명 없이 출력하세요.
-
-# EXAMPLE OF YOUR THOUGHT PROCESS
----
-[사용자 질문 예시]
-"컴퓨터과학자들이 제안한 인공지능 정의에 내재된 지능, 뇌, 그리고 컴퓨터 모의 사이의 논쟁적 쟁점을 어떻게 요약할 수 있나요?"
-
-[당신의 사고 과정 예시]
-- **Step 1: 질문 분해**
-  - 주제: 인공지능(AI)의 정의
-  - 범위: 컴퓨터과학자들의 제안
-  - 관점: 지능, 뇌, 컴퓨터 시뮬레이션 간의 관계 및 논쟁
-  - 대상: 논쟁적 쟁점
-- **Step 2: 핵심 개념 식별**
-  - 인공지능 정의 (Definition of Artificial Intelligence)
-  - 인지과학 (Cognitive Science)
-  - 계산주의 마음 이론 (Computational Theory of Mind)
-  - 튜링 테스트 (Turing Test)
-  - 중국어 방 논변 (Chinese Room Argument)
-- **Step 3: 키워드 확장 및 브레인스토밍**
-  - 인공지능, AI, 지능의 정의, 강한 AI, 약한 AI, 튜링 테스트, 존 설, 인지 모의, 뇌-컴퓨터 인터페이스, 상징주의, 연결주의, 인공 의식...
-- **Step 4: 최종 키워드 선택 및 정제**
-  (아래 내용이 최종 출력이 됨)
-  인공지능 정의 논쟁
-  계산주의 마음 이론
-  튜링 테스트 비판
-  인지과학과 AI
----
-
-# EXECUTION
-이제 아래 '사용자 질문'에 대해 위의 4단계 사고 과정을 적용하여 최적의 검색 키워드를 생성하세요.
+# OUTPUT FORMAT
+최대 8개의 작은 키워드를 줄바꿈으로 구분하여 출력하세요.
+각 키워드는 1-3단어로 구성되어야 합니다.
 
 # USER QUESTION:
 {question}
 
-# FINAL SEARCH KEYWORDS:
+# SEARCH KEYWORDS:
+"""
+
+    def create_english_prompt(self, query: str, context: str) -> str:
+        """
+        영어 질문을 위한 특화된 프롬프트 (Chain of Thought + 영어 예시)
+        
+        Args:
+            query: 영어 질문
+            context: 참고 문서 컨텍스트
+            
+        Returns:
+            영어 특화 프롬프트
+        """
+        return f"""You are an academic research expert. Please provide a comprehensive and professional answer based on the provided documents.
+
+## 📋 Analysis Process (Chain of Thought):
+
+### Step 1: Question Analysis
+- Identify the core topic and requirements of the question
+- Determine what specific information is needed
+
+### Step 2: Document Review
+- Systematically review the provided documents
+- Extract key information relevant to the question
+- Identify connections and differences between documents
+
+### Step 3: Information Synthesis
+- Logically connect the extracted information
+- Organize into a coherent and systematic structure
+
+### Step 4: Answer Composition
+- Write the answer in professional and clear language
+- Include specific examples and data
+
+## 📚 Reference Documents:
+{context}
+
+## ❓ Question:
+{query}
+
+## 🎯 Answer Writing Principles:
+1. **Professional Tone**: Write as an expert in the field
+2. **Directness**: Absolutely avoid these meta-explanations:
+   - "Based on the provided documents"
+   - "According to the research"
+   - "The documents show that"
+   - "This study indicates"
+   - "The analysis reveals"
+3. **Knowledge Transfer**: Focus purely on transferring knowledge and information
+4. **Specificity**: Provide concrete details rather than abstract explanations
+5. **Structure**: Organize with clear sections and logical flow
+
+## 📝 Output Format:
+1. **Title**: Concise and professional title
+2. **Introduction**: Brief background and context
+3. **Main Body**: Detailed analysis with specific points
+4. **Conclusion**: Summary of key findings
+
+## 💡 Good Answer Example:
+
+### Example Question: "What are the key features of machine learning approaches in healthcare applications?"
+
+### Example Answer:
+**Title: Key Features of Machine Learning Approaches in Healthcare Applications**
+
+**Introduction:**
+Machine learning has revolutionized healthcare by enabling predictive diagnostics, personalized treatment plans, and automated medical image analysis. These approaches leverage vast amounts of patient data to improve clinical decision-making and patient outcomes.
+
+**Main Body:**
+1. **Predictive Diagnostics**: ML algorithms analyze patient data to predict disease risk and progression, enabling early intervention.
+2. **Personalized Medicine**: Individual patient characteristics are used to tailor treatment plans and medication dosages.
+3. **Medical Image Analysis**: Deep learning models provide accurate interpretation of X-rays, MRIs, and CT scans.
+4. **Clinical Decision Support**: Real-time analysis of patient data assists healthcare providers in making informed decisions.
+
+**Conclusion:**
+Machine learning in healthcare represents a paradigm shift toward data-driven, personalized medicine that enhances both diagnostic accuracy and treatment effectiveness.
+
+---
+## ✍️ Your Answer:
 """
 
     def create_bilingual_keyword_prompt(self, question: str, target_language: str = "ko") -> str:

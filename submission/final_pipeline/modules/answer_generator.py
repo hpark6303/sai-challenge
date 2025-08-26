@@ -41,8 +41,13 @@ class AnswerGenerator:
         # 컨텍스트 강화
         enhanced_context = self.prompt_engineer.enhance_context(context, query)
         
-        # 고품질 프롬프트 생성
-        prompt = self.prompt_engineer.create_final_prompt(query, enhanced_context, language)
+        # 언어에 따른 최적화된 프롬프트 생성
+        if language == "en":
+            # 영어 질문: 영어 특화 프롬프트 사용
+            prompt = self.prompt_engineer.create_english_prompt(query, enhanced_context)
+        else:
+            # 한국어 질문: 한국어 특화 프롬프트 사용
+            prompt = self.prompt_engineer.create_final_prompt(query, enhanced_context, language)
         
         # 답변 생성 (재시도 포함)
         for attempt in range(max_retries):
@@ -66,7 +71,7 @@ class AnswerGenerator:
     
     def _validate_answer(self, answer: str, query: str) -> bool:
         """
-        답변 품질 검증
+        답변 품질 검증 (강화된 버전)
         
         Args:
             answer: 생성된 답변
@@ -83,7 +88,28 @@ class AnswerGenerator:
             return False
         
         # 기본적인 품질 검증
-        if answer.lower() in ['답변을 생성할 수 없습니다', 'error', 'failed']:
+        if answer.lower() in ['답변을 생성할 수 없습니다', 'error', 'failed', 'cannot generate']:
+            return False
+        
+        # 메타 설명 검증 (제거된 메타 설명이 다시 나타나는지 확인)
+        meta_phrases = [
+            '제공된 문서를 바탕으로', '문서 분석을 통한', '참고문헌을 통해',
+            'based on the provided documents', 'document analysis shows', 'according to the references'
+        ]
+        
+        answer_lower = answer.lower()
+        for phrase in meta_phrases:
+            if phrase in answer_lower:
+                print(f"   ⚠️  메타 설명 감지: {phrase}")
+                return False
+        
+        # 구조 검증 (제목, 본문, 결론 포함 여부)
+        has_title = any(keyword in answer for keyword in ['제목:', 'Title:', '**제목**', '**Title**'])
+        has_body = any(keyword in answer for keyword in ['본론:', 'Main Body:', '**본론**', '**Main Body**'])
+        has_conclusion = any(keyword in answer for keyword in ['결론:', 'Conclusion:', '**결론**', '**Conclusion**'])
+        
+        # 최소한 제목과 본문은 있어야 함
+        if not (has_title or has_body):
             return False
         
         return True

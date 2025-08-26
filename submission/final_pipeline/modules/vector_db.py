@@ -125,16 +125,32 @@ class VectorDatabase:
             return set()
     
     def _filter_new_documents(self, documents: List[Dict], existing_ids: set) -> List[Dict]:
-        """새로운 문서만 필터링"""
+        """새로운 문서만 필터링 (중복 ID 문제 해결)"""
         new_docs = []
+        seen_ids = set()  # 현재 배치에서 이미 본 ID들
+        
         for doc in documents:
             doc_id = str(doc.get('CN', ''))
-            if doc_id and doc_id not in existing_ids:
-                new_docs.append(doc)
+            
+            # ID가 없거나 이미 존재하는 경우 스킵
+            if not doc_id:
+                continue
+                
+            # 기존 DB에 있거나 현재 배치에서 이미 본 경우 스킵
+            if doc_id in existing_ids or doc_id in seen_ids:
+                continue
+            
+            # 새로운 문서로 추가
+            seen_ids.add(doc_id)
+            new_docs.append(doc)
+        
+        if len(new_docs) != len(documents):
+            print(f"   - 중복 제거: {len(documents)}개 → {len(new_docs)}개")
+        
         return new_docs
     
     def _add_embeddings_to_db(self, documents: List[Dict]):
-        """임베딩을 DB에 추가"""
+        """임베딩을 DB에 추가 (중복 ID 오류 처리 개선)"""
         try:
             # 문서 텍스트 생성
             texts = [f"{doc.get('title', '')} {doc.get('abstract', '')}" for doc in documents]
@@ -143,27 +159,54 @@ class VectorDatabase:
             print(f"   - {len(texts)}개 문서 임베딩 생성 중...")
             embeddings = self.model.encode(texts, show_progress_bar=True)
             
-            # 메타데이터 및 ID 준비
-            ids = [str(doc.get('CN', '')) for doc in documents]
-            metadatas = [{'title': doc.get('title', ''), 'abstract': doc.get('abstract', '')} for doc in documents]
+            # 메타데이터 및 ID 준비 (중복 확인)
+            ids = []
+            unique_texts = []
+            unique_embeddings = []
+            unique_metadatas = []
+            
+            seen_ids = set()
+            for i, doc in enumerate(documents):
+                doc_id = str(doc.get('CN', ''))
+                
+                # 중복 ID 체크
+                if doc_id in seen_ids:
+                    print(f"   ⚠️  중복 ID 발견: {doc_id} - 스킵")
+                    continue
+                
+                seen_ids.add(doc_id)
+                ids.append(doc_id)
+                unique_texts.append(texts[i])
+                unique_embeddings.append(embeddings[i])
+                unique_metadatas.append({'title': doc.get('title', ''), 'abstract': doc.get('abstract', '')})
+            
+            if len(unique_texts) != len(texts):
+                print(f"   - 중복 제거 후: {len(texts)}개 → {len(unique_texts)}개")
             
             # 벡터 DB에 추가
             self.collection.add(
-                embeddings=embeddings.tolist(),
-                documents=texts,
+                embeddings=unique_embeddings,
+                documents=unique_texts,
                 ids=ids,
-                metadatas=metadatas
+                metadatas=unique_metadatas
             )
             
-            print(f"   - {len(texts)}개 문서 벡터 DB 추가 완료")
+            print(f"   - {len(unique_texts)}개 문서 벡터 DB 추가 완료")
             
         except Exception as e:
             print(f"   ❌ 벡터 DB 추가 실패: {e}")
-            # 에러가 발생해도 프로세스는 계속 진행
-            if "readonly database" in str(e):
+            
+            # 중복 ID 오류 처리
+            if "Expected IDs to be unique" in str(e):
+                print(f"   💡 중복 ID 오류 - 더 강력한 중복 제거 시도")
+                self._handle_duplicate_ids_error(documents)
+            # 읽기 전용 오류 처리
+            elif "readonly database" in str(e):
                 print(f"   💡 해결 방안: vector_db 폴더 권한을 확인하고 다시 시도하세요.")
                 print(f"   💡 임시 해결: 인메모리 모드로 전환합니다.")
                 self._fallback_to_memory_mode()
+            else:
+                print(f"   ⚠️  알 수 없는 오류: {e}")
     
     def _fallback_to_memory_mode(self):
         """읽기 전용 오류 시 인메모리 모드로 전환"""
@@ -178,6 +221,61 @@ class VectorDatabase:
         except Exception as e:
             print(f"   ❌ 인메모리 모드 전환도 실패: {e}")
             print("   ⚠️  벡터 검색 기능을 비활성화합니다.")
+    
+    def _handle_duplicate_ids_error(self, documents: List[Dict]):
+        """중복 ID 오류 처리"""
+        try:
+            print("   🔄 중복 ID 제거 후 재시도...")
+            
+            # 기존 DB의 모든 ID 가져오기
+            existing_ids = self._get_existing_ids()
+            
+            # 완전히 중복 제거된 문서만 필터링
+            unique_docs = []
+            seen_ids = set()
+            
+            for doc in documents:
+                doc_id = str(doc.get('CN', ''))
+                if doc_id and doc_id not in existing_ids and doc_id not in seen_ids:
+                    seen_ids.add(doc_id)
+                    unique_docs.append(doc)
+            
+            if unique_docs:
+                print(f"   - 중복 제거 후 {len(unique_docs)}개 문서로 재시도")
+                self._add_embeddings_to_db_safe(unique_docs)
+            else:
+                print("   - 중복 제거 후 추가할 문서가 없습니다.")
+                
+        except Exception as e:
+            print(f"   ❌ 중복 ID 오류 처리 실패: {e}")
+    
+    def _add_embeddings_to_db_safe(self, documents: List[Dict]):
+        """안전한 임베딩 추가 (개별 문서 단위로 처리)"""
+        try:
+            for doc in documents:
+                try:
+                    # 단일 문서 처리
+                    text = f"{doc.get('title', '')} {doc.get('abstract', '')}"
+                    embedding = self.model.encode([text])
+                    doc_id = str(doc.get('CN', ''))
+                    metadata = {'title': doc.get('title', ''), 'abstract': doc.get('abstract', '')}
+                    
+                    # 개별 문서 추가
+                    self.collection.add(
+                        embeddings=embedding.tolist(),
+                        documents=[text],
+                        ids=[doc_id],
+                        metadatas=[metadata]
+                    )
+                    
+                except Exception as e:
+                    print(f"   ⚠️  문서 {doc_id} 추가 실패: {e}")
+                    continue
+            
+            print(f"   - 안전한 추가 완료")
+            
+        except Exception as e:
+            print(f"   ❌ 안전한 추가도 실패: {e}")
     
     def search_similar(self, query: str, 
                       n_results: int = VECTOR_DB_CONFIG['max_results'],

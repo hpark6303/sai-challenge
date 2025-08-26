@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-CRAG 파이프라인 테스트 스크립트 (고급 키워드 추출 버전)
+CRAG 파이프라인 테스트 스크립트 (실제 submission 형식)
+- test_questions의 질문들로 실제 submission과 동일한 CSV 생성
 - CRAG 기능이 제대로 작동하는지 확인
 - 고급 LLM 기반 키워드 추출 테스트
 - 교정 검색의 효과 상세 분석
-- 단일 질문으로 테스트 수행
 """
 
 import sys
 import time
+import pandas as pd
+import os
 from pathlib import Path
 from scienceon_api_example import ScienceONAPIClient
 from gemini_client import GeminiClient
@@ -91,7 +93,7 @@ def test_crag_pipeline():
     # 3. 테스트 질문 (복잡한 학술 질문들)
     test_questions = [
         "Mechanical Turk 데이터로부터 TurKontrol의 POMDP 파라미터를 학습하여 반복적인 크라우드소싱 작업을 최적화하는 시스템의 접근 방식과 결과는 무엇인가?",
-        "잡음 환경에서 시청각 음성인식의 인식률을 높이기 위해 은닉 마르코프 모델과 신경망 통합 전략이 어떻게 구성되었는지?",
+        "Big Data를 이용한 Warehouse Management System 모델에서 제시된 핵심 개념과 방향을 요약해 주시겠습니까?",
         "DTG 실 주행데이터와 공간정보를 활용한 연료소모량 추정 모델 SBiFEM의 핵심 구성 요소를 요약해 주세요."
     ]
     
@@ -248,21 +250,149 @@ def test_crag_detailed():
         import traceback
         traceback.print_exc()
 
-if __name__ == "__main__":
-    # 고급 키워드 추출 테스트
-    test_advanced_keyword_extraction()
+def create_test_submission():
+    """실제 submission과 동일한 형식의 CSV 파일 생성"""
+    print("📊 실제 submission 형식 CSV 생성 시작")
     
-    # 기본 CRAG 테스트
-    test_crag_pipeline()
-    
-    # 상세 테스트 (선택적)
-    print(f"\n{'='*80}")
-    print("상세 테스트를 실행하시겠습니까? (y/n): ", end="")
+    # 1. API 클라이언트 초기화
     try:
-        choice = input().strip().lower()
-        if choice in ['y', 'yes', '예']:
-            test_crag_detailed()
-    except:
-        pass
+        credentials_path = Path('./configs/scienceon_api_credentials.json')
+        api_client = ScienceONAPIClient(credentials_path=credentials_path)
+        
+        gemini_credentials_path = Path('./configs/gemini_api_credentials.json')
+        gemini_client = GeminiClient(gemini_credentials_path)
+        
+        print("✅ API 클라이언트 초기화 완료")
+    except Exception as e:
+        print(f"❌ API 클라이언트 초기화 실패: {e}")
+        return
     
-    print(f"\n🎉 모든 테스트 완료!")
+    # 2. RAG 파이프라인 초기화
+    pipeline = RAGPipeline(api_client, gemini_client)
+    
+    # 3. 테스트 질문들 (3개만)
+    test_questions = [
+        "Mechanical Turk 데이터로부터 TurKontrol의 POMDP 파라미터를 학습하여 반복적인 크라우드소싱 작업을 최적화하는 시스템의 접근 방식과 결과는 무엇인가?",
+        "Big Data를 이용한 Warehouse Management System 모델에서 제시된 핵심 개념과 방향을 요약해 주시겠습니까?",
+        "DTG 실 주행데이터와 공간정보를 활용한 연료소모량 추정 모델 SBiFEM의 핵심 구성 요소를 요약해 주세요."
+    ]
+    
+    # 4. 결과 저장용 리스트
+    results = []
+    
+    # 5. 각 질문 처리
+    for i, question in enumerate(test_questions, 1):
+        print(f"\n{'='*80}")
+        print(f"🔍 질문 {i}/{len(test_questions)}: {question[:100]}...")
+        print(f"{'='*80}")
+        
+        start_time = time.time()
+        
+        try:
+            # 파이프라인으로 질문 처리
+            answer, articles = pipeline.process_question(i-1, question)
+            
+            processing_time = time.time() - start_time
+            
+            # 결과 저장
+            result = {
+                'id': i-1,
+                'Question': question,
+                'SAI_Answer': '',  # 실제 답변은 없으므로 빈 문자열
+                'translated_question': '',  # 번역된 질문 (필요시 추가)
+                'translated_SAI_answer': '',  # 번역된 답변 (필요시 추가)
+                'Prediction': answer,
+                'elapsed_times': processing_time
+            }
+            
+            # retrieved_article_name_1~50 컬럼 추가
+            for j in range(1, 51):
+                col_name = f'retrieved_article_name_{j}'
+                result[col_name] = ''
+            
+            # prediction_retrieved_article_name_1~50 컬럼 추가
+            for j in range(1, 51):
+                col_name = f'prediction_retrieved_article_name_{j}'
+                if j <= len(articles):
+                    result[col_name] = articles[j-1]
+                else:
+                    result[col_name] = ''
+            
+            results.append(result)
+            
+            print(f"✅ 질문 {i} 처리 완료 (소요시간: {processing_time:.2f}초)")
+            print(f"   📝 답변 길이: {len(answer)}자")
+            print(f"   📚 검색된 문서 수: {len(articles)}개")
+            
+        except Exception as e:
+            print(f"❌ 질문 {i} 처리 실패: {e}")
+            # 실패한 경우에도 기본 구조 유지
+            result = {
+                'id': i-1,
+                'Question': question,
+                'SAI_Answer': '',
+                'translated_question': '',
+                'translated_SAI_answer': '',
+                'Prediction': f'처리 중 오류가 발생했습니다: {str(e)}',
+                'elapsed_times': time.time() - start_time
+            }
+            
+            # 빈 컬럼들 추가
+            for j in range(1, 51):
+                result[f'retrieved_article_name_{j}'] = ''
+                result[f'prediction_retrieved_article_name_{j}'] = ''
+            
+            results.append(result)
+    
+    # 6. DataFrame 생성 및 CSV 저장
+    df = pd.DataFrame(results)
+    
+    # 컬럼 순서 정렬 (실제 submission과 동일하게)
+    column_order = ['id', 'Question', 'SAI_Answer', 'translated_question', 'translated_SAI_answer']
+    
+    # retrieved_article_name_1~50
+    for i in range(1, 51):
+        column_order.append(f'retrieved_article_name_{i}')
+    
+    # prediction_retrieved_article_name_1~50
+    for i in range(1, 51):
+        column_order.append(f'prediction_retrieved_article_name_{i}')
+    
+    # 마지막 컬럼들
+    column_order.extend(['Prediction', 'elapsed_times'])
+    
+    # 컬럼 순서 적용
+    df = df[column_order]
+    
+    # 7. CSV 파일 저장
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    filename = f'test_submission_crag_{timestamp}.csv'
+    filepath = os.path.join('../test_submissions', filename)
+    
+    # submissions 폴더 생성
+    os.makedirs('../submissions', exist_ok=True)
+    
+    # CSV 저장
+    df.to_csv(filepath, index=False, encoding='utf-8-sig')
+    
+    print(f"\n🎉 테스트 submission 생성 완료!")
+    print(f"   📁 파일 경로: {filepath}")
+    print(f"   📊 총 질문 수: {len(df)}개")
+    print(f"   📋 총 컬럼 수: {len(df.columns)}개")
+    print(f"   ⏱️  총 소요 시간: {df['elapsed_times'].sum():.2f}초")
+    print(f"   📈 평균 처리 시간: {df['elapsed_times'].mean():.2f}초/질문")
+    
+    # 성공률 계산
+    success_count = len([r for r in results if '오류' not in r['Prediction']])
+    success_rate = (success_count / len(results)) * 100
+    print(f"   ✅ 성공률: {success_count}/{len(results)} ({success_rate:.1f}%)")
+    
+    return filepath
+
+if __name__ == "__main__":
+    print("🚀 CRAG 파이프라인 테스트 시작")
+    
+    # 실제 submission 형식 CSV 생성
+    create_test_submission()
+    
+    print("\n🎉 모든 테스트 완료!")

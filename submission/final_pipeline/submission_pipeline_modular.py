@@ -219,24 +219,59 @@ def main():
     # 질문을 튜플 리스트로 변환
     questions_to_process = [(index, row['Question']) for index, row in test_df.iterrows()]
     
-    # 배치 처리
+    # 배치 처리 (시간 측정 포함)
+    elapsed_times = []
+    
     with tqdm(total=len(questions_to_process), desc="질문 처리") as pbar:
         for index, row in test_df.iterrows():
             print(f"\n🔍 질문 {index+1}: {row['Question'][:100]}...")
+            
+            # 개별 질문 처리 시간 측정
+            question_start_time = time.time()
             answer, articles = pipeline.process_question(index, row['Question'])
+            question_elapsed_time = time.time() - question_start_time
+            
             predictions.append(answer)
             predicted_articles.append(articles)
+            elapsed_times.append(question_elapsed_time)
             pbar.update(1)
     
-    # 6. 결과 저장
-    submission_df = test_df.copy()
-    submission_df['Prediction'] = predictions
+    # 6. 결과 저장 - 올바른 컬럼 순서로 구성
+    # 올바른 컬럼 순서 정의
+    correct_column_order = [
+        'id', 'Question', 'SAI_Answer', 'translated_question', 'translated_SAI_answer'
+    ]
     
-    # 논문 컬럼 추가
-    for i in range(50):
-        col_name = f'prediction_retrieved_article_name_{i+1}'
-        submission_df[col_name] = [articles[i] if i < len(articles) else '' 
+    # retrieved_article_name_1~50 추가
+    for i in range(1, 51):
+        correct_column_order.append(f'retrieved_article_name_{i}')
+    
+    # prediction_retrieved_article_name_1~50 추가
+    for i in range(1, 51):
+        correct_column_order.append(f'prediction_retrieved_article_name_{i}')
+    
+    # Prediction과 elapsed_times 추가
+    correct_column_order.extend(['Prediction', 'elapsed_times'])
+    
+    # 새로운 submission DataFrame 생성
+    submission_df = pd.DataFrame()
+    
+    # 1. 원본 컬럼들 복사 (올바른 순서로)
+    for col in correct_column_order:
+        if col in test_df.columns:
+            submission_df[col] = test_df[col]
+        elif col == 'Prediction':
+            submission_df[col] = predictions
+        elif col == 'elapsed_times':
+            submission_df[col] = elapsed_times
+        elif col.startswith('prediction_retrieved_article_name_'):
+            # prediction_retrieved_article_name_1~50 컬럼 생성
+            article_index = int(col.split('_')[-1]) - 1
+            submission_df[col] = [articles[article_index] if article_index < len(articles) else '' 
                                   for articles in predicted_articles]
+    
+    # 컬럼 순서 강제 적용
+    submission_df = submission_df[correct_column_order]
     
     # 7. null 값 처리 및 저장 (강화된 검증)
     submission_df = submission_df.fillna('')
