@@ -1,39 +1,68 @@
 """
-RAG 파이프라인 메인 모듈
+RAG 파이프라인 메인 모듈 (개선된 버전)
 - 전체 RAG 워크플로우 관리
 - 모듈 간 협력 조정
 - 결과 생성 및 검증
+- 향상된 검색 시스템 통합
 """
 
 import sys
+import logging
 from typing import List, Dict, Tuple
-from .vector_db import VectorDatabase
-from .retrieval import DocumentRetriever
+from .document_manager import DocumentManager
+from .search_engine import FlexibleSearchEngine
+from .search_tools import ScienceONTool
+from .search_methods import KeywordSearchMethod, HybridSearchMethod, SemanticSearchMethod
+from .keyword_extractors import LLMKeywordExtractor, BasicKeywordExtractor
 from .reranking import DocumentReranker
 from .answer_generator import AnswerGenerator
 from .config import SEARCH_CONFIG, ANSWER_CONFIG, TEST_CONFIG
 
 class RAGPipeline:
-    """RAG 파이프라인 메인 클래스"""
+    """RAG 파이프라인 메인 클래스 (개선된 버전)"""
     
-    def __init__(self, api_client, gemini_client):
+    def __init__(self, api_client, gemini_client, dataset_name: str = "scienceon"):
         """
         RAG 파이프라인 초기화
         
         Args:
             api_client: ScienceON API 클라이언트
             gemini_client: Gemini API 클라이언트
+            dataset_name: 데이터셋 이름
         """
+        self.dataset_name = dataset_name
+        
         # 벡터 DB 초기화 여부 확인
         clear_db = TEST_CONFIG.get('clear_vector_db', False)
         
         # 각 모듈 초기화
-        self.vector_db = VectorDatabase(clear_db=clear_db)
-        self.retriever = DocumentRetriever(api_client, gemini_client)  # Gemini 클라이언트 전달
+        self.document_manager = DocumentManager(clear_db=clear_db)
+        
+        # 검색 도구들 초기화
+        scienceon_tool = ScienceONTool(api_client)
+        
+        # 검색 방법들 초기화
+        keyword_method = KeywordSearchMethod()
+        hybrid_method = HybridSearchMethod()
+        semantic_method = SemanticSearchMethod()
+        
+        # 검색 엔진 초기화
+        self.search_engine = FlexibleSearchEngine(self.document_manager)
+        self.search_engine.register_tool("scienceon", scienceon_tool, is_default=True)
+        self.search_engine.register_method("keyword", keyword_method)
+        self.search_engine.register_method("hybrid", hybrid_method, is_default=True)
+        self.search_engine.register_method("semantic", semantic_method)
+        
+        # 키워드 추출기들 초기화
+        self.keyword_extractors = {
+            'llm': LLMKeywordExtractor(gemini_client),
+            'basic': BasicKeywordExtractor()
+        }
+        
         self.reranker = DocumentReranker()
         self.answer_generator = AnswerGenerator(gemini_client)
         
-        print("✅ RAG 파이프라인 초기화 완료")
+        logging.info("✅ 향상된 RAG 파이프라인 초기화 완료")
     
     def process_question(self, question_id: int, query: str) -> Tuple[str, List[str]]:
         """
@@ -54,15 +83,15 @@ class RAGPipeline:
             print(f"   📚 검색된 문서: {len(documents)}개")
             
             # 2단계: 벡터 DB에 저장
-            added_count = self.vector_db.add_documents(documents)
+            added_count = self.document_manager.store_documents(documents, query)
             if added_count > 0:
                 print(f"   📚 벡터 DB에 {added_count}개 문서 추가")
             
             # 3단계: 벡터 검색
-            similar_docs = self.vector_db.search_similar(query)
+            similar_docs = self.document_manager.search_similar_documents(query)
             
-            # 4단계: 검색 결과 보충
-            final_docs = self.retriever.supplement_documents(similar_docs, documents)
+            # 4단계: 검색 결과 보충 (기존 문서와 유사 문서 결합)
+            final_docs = documents + similar_docs
             
             # 5단계: 재순위화
             reranked_docs = self.reranker.rerank_documents(final_docs, query)
@@ -82,17 +111,29 @@ class RAGPipeline:
             print(f"   ❌ 질문 {question_id+1} 처리 실패: {e}")
             return f"처리 중 오류가 발생했습니다: {str(e)}", [''] * 50
     
-    def _retrieve_documents(self, query: str) -> List[Dict]:
+    def _retrieve_documents(self, query: str, search_strategy: str = None) -> List[Dict]:
         """
-        문서 검색 (CRAG 파이프라인 사용)
+        문서 검색 (향상된 검색 시스템 사용)
         
         Args:
             query: 검색 쿼리
+            search_strategy: 검색 전략
             
         Returns:
             검색된 문서 리스트
         """
-        return self.retriever.search_with_crag(query)
+        # 키워드 추출
+        keywords = self.keyword_extractors['llm'].extract_keywords(query)
+        
+        # 검색 실행
+        documents, search_metadata = self.search_engine.search(
+            query, 
+            dataset_name=self.dataset_name,
+            method=search_strategy,
+            keywords=keywords
+        )
+        
+        return documents
     
     def _format_articles(self, documents: List[Dict]) -> List[str]:
         """
@@ -111,10 +152,24 @@ class RAGPipeline:
             print(f"   🚨 실제 문서 부족: {len(documents)}개 (목표: 50개)")
             print(f"   🔍 추가 문서 검색 중...")
             
-            # 추가 검색을 위해 retriever 사용
-            additional_docs = self.retriever._emergency_search("", 50 - len(documents))
+            # 추가 검색을 위해 search_engine 사용
+            additional_docs, _ = self.search_engine.search(
+                "", 
+                dataset_name=self.dataset_name,
+                method="keyword",
+                keywords=["research", "study", "analysis"]
+            )
             documents.extend(additional_docs)
-            documents = self.retriever._remove_duplicates(documents)
+            
+            # 중복 제거
+            seen_ids = set()
+            unique_docs = []
+            for doc in documents:
+                doc_id = doc.get('CN')
+                if doc_id and doc_id not in seen_ids:
+                    seen_ids.add(doc_id)
+                    unique_docs.append(doc)
+            documents = unique_docs
             
             print(f"   📊 추가 검색 후: {len(documents)}개 문서")
         

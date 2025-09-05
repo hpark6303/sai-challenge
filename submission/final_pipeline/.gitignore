@@ -1,0 +1,6 @@
+data/
+vector_db/
+datasets/
+results/
+outputs/
+__pycache__/

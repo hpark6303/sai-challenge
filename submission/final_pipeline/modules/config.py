@@ -32,7 +32,7 @@ SEARCH_CONFIG = {
 # 답변 생성 설정
 ANSWER_CONFIG = {
     'min_answer_length': 50,
-    'max_context_docs': 5,
+    'max_context_docs': 8,  # 상위 3개 문서만 context에 사용 (과부하 방지)
     'max_retries': 3
 }
 

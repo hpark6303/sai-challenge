@@ -179,8 +179,14 @@ class AnswerGenerator:
         if not documents:
             return ""
         
+        # 상위 3개 문서만 사용 (과부하 방지)
+        max_docs = ANSWER_CONFIG['max_context_docs']
+        selected_docs = documents[:max_docs]
+        
+        print(f"   📚 Context 생성: 전체 {len(documents)}개 문서 중 상위 {len(selected_docs)}개 사용")
+        
         context_parts = []
-        for i, doc in enumerate(documents[:ANSWER_CONFIG['max_context_docs']]):
+        for i, doc in enumerate(selected_docs):
             # 문서 확장
             expanded_content = self._expand_document_content(doc)
             

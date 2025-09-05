@@ -6,16 +6,16 @@ RAG 파이프라인 모듈 패키지
 """
 
 from .config import *
-from .vector_db import VectorDatabase
-from .retrieval import DocumentRetriever
+from .document_manager import DocumentManager
+from .search_engine import FlexibleSearchEngine
 from .reranking import DocumentReranker
 from .prompting import PromptEngineer
 from .answer_generator import AnswerGenerator
 from .rag_pipeline import RAGPipeline
 
 __all__ = [
-    'VectorDatabase',
-    'DocumentRetriever', 
+    'DocumentManager',
+    'FlexibleSearchEngine',
     'DocumentReranker',
     'PromptEngineer',
     'AnswerGenerator',
