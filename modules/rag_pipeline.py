@@ -239,7 +239,7 @@ class RAGPipeline:
         Returns:
             통계 정보 딕셔너리
         """
-        vector_stats = self.vector_db.get_stats()
+        vector_stats = self.document_manager.get_stats()
         
         return {
             "vector_db": vector_stats,

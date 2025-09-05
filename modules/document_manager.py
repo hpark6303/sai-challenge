@@ -345,3 +345,32 @@ class DocumentManager:
         except Exception as e:
             logging.error(f"문서 수 조회 실패: {e}")
             return 0
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """통계 정보 반환"""
+        try:
+            with sqlite3.connect(self.metadata_db_path) as conn:
+                # 문서 수
+                cursor = conn.execute("SELECT COUNT(*) FROM documents")
+                document_count = cursor.fetchone()[0]
+                
+                # 컬렉션 수
+                collection_count = self.collection.count()
+                
+                return {
+                    "document_count": document_count,
+                    "collection_count": collection_count,
+                    "embedding_model": self.embedding_model_name,
+                    "vector_db_path": str(self.vector_db_path),
+                    "metadata_db_path": str(self.metadata_db_path)
+                }
+        except Exception as e:
+            logging.error(f"통계 정보 조회 실패: {e}")
+            return {
+                "document_count": 0,
+                "collection_count": 0,
+                "embedding_model": self.embedding_model_name,
+                "vector_db_path": str(self.vector_db_path),
+                "metadata_db_path": str(self.metadata_db_path),
+                "error": str(e)
+            }

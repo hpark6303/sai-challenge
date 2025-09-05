@@ -61,7 +61,7 @@ FILE_CONFIG = {
 
 # 테스트 설정
 TEST_CONFIG = {
-    'max_questions': 50,  # 전체 질문 테스트
+    'max_questions': 5,   # 테스트용 5개 질문만 처리
     'debug_mode': True,   # 디버그 모드 활성화 (키워드 추출 과정 표시)
     'clear_vector_db': True  # 벡터 DB 초기화
 }
